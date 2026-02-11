@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link as LinkIcon, QrCode, BarChart3, Shield, Zap, Copy, Check, ArrowRight } from "lucide-react";
 import Link from "next/link";
+import { createClient } from "@/lib/supabase";
 
 export default function HomePage() {
   const [url, setUrl] = useState("");
@@ -10,18 +11,47 @@ export default function HomePage() {
   const [qrCode, setQrCode] = useState("");
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+
+  const supabase = createClient();
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      setIsLoggedIn(!!user);
+    });
+  }, []);
 
   const shortenUrl = async () => {
     if (!url) return;
-    
     setLoading(true);
-    // Simulate API call (will be real backend in production)
-    setTimeout(() => {
-      const shortCode = Math.random().toString(36).substring(2, 8);
-      setShortUrl(`sh.zy/${shortCode}`);
-      setQrCode(`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=https://sh.zy/${shortCode}`);
+
+    if (isLoggedIn) {
+      try {
+        const res = await fetch("/api/shorten", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url }),
+        });
+        const data = await res.json();
+        if (res.ok) {
+          setShortUrl(data.short_url.replace("https://", ""));
+          setQrCode(data.qr_code);
+        } else {
+          alert(data.error || "Failed to shorten");
+        }
+      } catch {
+        alert("Something went wrong");
+      }
       setLoading(false);
-    }, 1000);
+    } else {
+      // Demo simulation for anonymous users
+      setTimeout(() => {
+        const shortCode = Math.random().toString(36).substring(2, 8);
+        setShortUrl(`sh.zy/${shortCode}`);
+        setQrCode(`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=https://sh.zy/${shortCode}`);
+        setLoading(false);
+      }, 1000);
+    }
   };
 
   const copyToClipboard = () => {
